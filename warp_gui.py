@@ -6,17 +6,17 @@ import sys
 import os
 import time
 
-# Servis adı
+# Service name
 SERVICE_NAME = "cloudflarewarp"
 
-# Yönetici haklarını kontrol etme
+# Check for administrator privileges
 def is_admin():
     try:
         return ctypes.windll.shell32.IsUserAnAdmin()
     except:
         return False
 
-# Warp durumu kontrolü
+# Check if Warp service is running
 def is_warp_running():
     try:
         result = subprocess.run(['sc', 'query', SERVICE_NAME], capture_output=True, text=True, check=True)
@@ -27,72 +27,72 @@ def is_warp_running():
             if "STOPPED" in output or "STATE              : 1  STOPPED" in output:
                 return False
             if "STOP_PENDING" in output or "START_PENDING" in output:
-                # Ara durumlar için 1 saniye bekle ve tekrar kontrol et
+                # Wait 1 second for intermediate states and check again
                 time.sleep(1)
                 return is_warp_running()
         return False
     except subprocess.CalledProcessError as e:
         if e.returncode == 1060:
-            update_message(f"Hata: Cloudflare WARP servisi bulunamadı. ({SERVICE_NAME})", "red")
+            update_message(f"Error: Cloudflare WARP service not found. ({SERVICE_NAME})", "red")
         else:
-            update_message(f"Hata: Servis durumu kontrol edilemedi: {e.stderr}", "red")
+            update_message(f"Error: Service status check failed: {e.stderr}", "red")
         return False
     except Exception as e:
-        update_message(f"Beklenmeyen hata: {str(e)}", "red")
+        update_message(f"Unexpected error: {str(e)}", "red")
         return False
 
-# Servisi başlatma
+# Start the service
 def start_warp():
-    update_message("Warp servisi başlatılıyor...", "blue")
+    update_message("Starting Warp service...", "blue")
     if is_warp_running():
-        update_message("Bilgi: Warp servisi zaten çalışıyor.", "green")
+        update_message("Info: Warp service is already running.", "green")
         return
     try:
         result = subprocess.run(['net', 'start', SERVICE_NAME], capture_output=True, text=True, check=True, shell=True)
         update_status()
-        update_message("Bilgi: Warp servisi başarıyla başlatıldı.", "green")
+        update_message("Info: Warp service started successfully.", "green")
     except subprocess.CalledProcessError as e:
-        update_message(f"Hata: Warp servisi başlatılamadı: {e.stderr}", "red")
+        update_message(f"Error: Could not start Warp service: {e.stderr}", "red")
     except Exception as e:
-        update_message(f"Beklenmeyen hata: {str(e)}", "red")
+        update_message(f"Unexpected error: {str(e)}", "red")
 
-# Servisi durdurma
+# Stop the service
 def stop_warp():
-    update_message("Warp servisi durduruluyor...", "blue")
+    update_message("Stopping Warp service...", "blue")
     if not is_warp_running():
-        update_message("Bilgi: Warp servisi zaten durdurulmuş.", "green")
+        update_message("Info: Warp service is already stopped.", "green")
         return
     try:
         result = subprocess.run(['net', 'stop', SERVICE_NAME], capture_output=True, text=True, check=True, shell=True)
         if result.returncode == 2:
-            update_message("Uyarı: Servis zaten durdurulmuş veya durdurulamadı.", "orange")
+            update_message("Warning: Service is already stopped or could not be stopped.", "orange")
         elif result.returncode != 0:
-            update_message(f"Hata: Warp servisi durdurulamadı: {e.stderr}", "red")
+            update_message(f"Error: Could not stop Warp service: {e.stderr}", "red")
         else:
-            update_message("Bilgi: Warp servisi başarıyla durduruldu.", "green")
+            update_message("Info: Warp service stopped successfully.", "green")
         update_status()
     except subprocess.CalledProcessError as e:
-        update_message(f"Hata: Warp servisi durdurulamadı: {e.stderr}", "red")
+        update_message(f"Error: Could not stop Warp service: {e.stderr}", "red")
     except Exception as e:
-        update_message(f"Beklenmeyen hata: {str(e)}", "red")
+        update_message(f"Unexpected error: {str(e)}", "red")
 
-# Arayüzü güncelle
+# Update the interface status
 def update_status():
     if is_warp_running():
-        status_label.config(text="Durum: Aktif", fg="green")
+        status_label.config(text="Status: Active", fg="green")
     else:
-        status_label.config(text="Durum: Deaktif", fg="red")
+        status_label.config(text="Status: Inactive", fg="red")
 
-# Bildirim mesajını güncelleme fonksiyonu
+# Update the notification message
 def update_message(message, color="black"):
     message_label.config(text=message, fg=color)
-    root.update_idletasks() # Arayüzün hemen güncellenmesini sağlar
+    root.update_idletasks()  # Ensures the interface is updated immediately
 
-# GUI Başlangıcı
+# GUI Initialization
 if is_admin():
     root = tk.Tk()
-    root.title("Cloudflare WARP Kontrol")
-    root.geometry("300x180") # Pencere yüksekliği artırıldı
+    root.title("Cloudflare WARP Control")
+    root.geometry("300x180")  # Increased window height
     root.resizable(False, False)
 
     status_label = tk.Label(root, text="", font=("Arial", 14))
@@ -101,10 +101,10 @@ if is_admin():
     btn_frame = tk.Frame(root)
     btn_frame.pack(pady=5)
 
-    start_btn = tk.Button(btn_frame, text="Çalıştır", width=10, command=start_warp)
+    start_btn = tk.Button(btn_frame, text="Start", width=10, command=start_warp)
     start_btn.pack(side="left", padx=10)
 
-    stop_btn = tk.Button(btn_frame, text="Durdur", width=10, command=stop_warp)
+    stop_btn = tk.Button(btn_frame, text="Stop", width=10, command=stop_warp)
     stop_btn.pack(side="right", padx=10)
 
     message_label = tk.Label(root, text="", font=("Arial", 10))
@@ -113,5 +113,5 @@ if is_admin():
     update_status()
     root.mainloop()
 else:
-    # Yönetici değilse, betiği yönetici olarak yeniden başlat
+    # If not an admin, restart the script with admin privileges
     ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.executable, " ".join(sys.argv), None, 1)
