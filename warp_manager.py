@@ -12,8 +12,8 @@ SETTINGS_FILE = "settings.json"
 
 class WarpManager:
     """
-    Cloudflare WARP servisini yönetmek için geliştirilmiş bir arayüz.
-    Servis durumunu izler, başlatır, durdurur ve yönetici haklarını kontrol eder.
+    A GUI application to manage the Cloudflare WARP service.
+    It monitors status, starts/stops the service, and handles admin rights.
     """
     def __init__(self, root, on_ready_callback=None):
         self.root = root
@@ -25,7 +25,7 @@ class WarpManager:
         self.initialize_app()
 
     def setup_ui(self):
-        """Uygulamanın kullanıcı arayüzünü oluşturur."""
+        """Creates the user interface for the application."""
         self.root.title("WARP Manager")
 
         window_width = 320
@@ -47,7 +47,7 @@ class WarpManager:
         title_label = ttk.Label(main_frame, text="Cloudflare WARP", font=("Segoe UI", 16, "bold"))
         title_label.pack(pady=(0, 10))
 
-        self.status_var = tk.StringVar(value="Hizmet aranıyor...")
+        self.status_var = tk.StringVar(value="Searching for service...")
         self.status_label = ttk.Label(main_frame, textvariable=self.status_var, font=("Segoe UI", 11))
         self.status_label.pack(pady=(0, 15))
 
@@ -57,23 +57,23 @@ class WarpManager:
         style = ttk.Style()
         style.configure("W.TButton", font=("Segoe UI", 10))
         
-        self.start_button = ttk.Button(button_frame, text="Başlat", command=self.start_service, style="W.TButton", width=12)
+        self.start_button = ttk.Button(button_frame, text="Start", command=self.start_service, style="W.TButton", width=12)
         self.start_button.pack(side=tk.LEFT, padx=(0, 5))
 
-        self.stop_button = ttk.Button(button_frame, text="Durdur", command=self.stop_service, style="W.TButton", width=12)
+        self.stop_button = ttk.Button(button_frame, text="Stop", command=self.stop_service, style="W.TButton", width=12)
         self.stop_button.pack(side=tk.LEFT, padx=(5, 0))
 
-        self.message_var = tk.StringVar(value="Hazır.")
+        self.message_var = tk.StringVar(value="Ready.")
         message_label = ttk.Label(main_frame, textvariable=self.message_var, font=("Segoe UI", 9), wraplength=280)
         message_label.pack(pady=(15, 0))
         
         self.monitoring_active = True
 
     def initialize_app(self):
-        """Uygulamanın çalışması için gerekli kontrolleri ve işlemleri başlatır."""
-        if not self.is_admin():
-            messagebox.showerror("Yönetici Yetkisi Gerekli", 
-                                 "Bu uygulama Windows hizmetlerini yönetmek için yönetici olarak çalıştırılmalıdır.")
+        """Initializes the necessary checks and processes for the application to run."""
+        if not is_admin():
+            messagebox.showerror("Administrator Privileges Required", 
+                                 "This application must be run as an administrator to manage Windows services.")
             self.root.destroy()
             return
         
@@ -81,40 +81,33 @@ class WarpManager:
         self.run_threaded(self.find_warp_service)
 
     def run_threaded(self, target_func, *args):
-        """Verilen fonksiyonu bir arka plan thread'inde çalıştırır."""
+        """Runs the given function in a background thread."""
         thread = threading.Thread(target=target_func, args=args, daemon=True)
         thread.start()
 
-    def is_admin(self):
-        """Kullanıcının yönetici yetkilerine sahip olup olmadığını kontrol eder."""
-        try:
-            return ctypes.windll.shell32.IsUserAnAdmin()
-        except AttributeError:
-            return False
-
     def find_warp_service(self):
-        """Mevcut WARP servisini bulur ve ardından durum izleyiciyi başlatır."""
-        # Komutların arka planda görünmez bir pencere oluşturmasını önlemek için
+        """Finds the current WARP service and then starts the status monitor."""
+        # This flag prevents a console window from appearing for subprocess calls on Windows.
         creation_flags = subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0
 
         for service_name in self.service_names:
             try:
-                # 'sc query' komutu hizmetin varlığını kontrol etmek için yeterlidir.
+                # 'sc query' is sufficient to check for the existence of the service.
                 subprocess.run(['sc', 'query', service_name], check=True, capture_output=True, creationflags=creation_flags)
                 self.active_service = service_name
-                self.root.after(0, lambda: self.message_var.set(f"Hizmet bulundu: {self.active_service}"))
+                self.root.after(0, lambda: self.message_var.set(f"Service found: {self.active_service}"))
                 
-                # Servis bulunduktan sonra durum izleyiciyi başlat
+                # Start the status monitor after the service is found
                 self.start_status_monitor()
                 return
             except (subprocess.CalledProcessError, FileNotFoundError):
                 continue
         
-        self.root.after(0, lambda: self.message_var.set("Cloudflare WARP hizmeti bulunamadı."))
+        self.root.after(0, lambda: self.message_var.set("Cloudflare WARP service not found."))
         self.root.after(0, lambda: self.update_status_display("not_found"))
 
     def get_service_status(self):
-        """Hizmetin mevcut durumunu (running, stopped vb.) döndürür."""
+        """Returns the current status of the service (e.g., running, stopped)."""
         if not self.active_service:
             return "not_found"
         
@@ -133,21 +126,21 @@ class WarpManager:
             return "error"
 
     def update_status_display(self, status):
-        """Arayüzdeki durum metnini ve rengini günceller."""
+        """Updates the status text and color in the UI."""
         status_map = {
-            "running": ("🟢 Aktif", "green"),
-            "stopped": ("🔴 İnaktif", "red"),
-            "starting": ("🟡 Başlatılıyor...", "orange"),
-            "stopping": ("🟡 Durduruluyor...", "orange"),
-            "not_found": ("❌ Hizmet bulunamadı", "gray"),
-            "unknown": ("❓ Durum bilinmiyor", "gray"),
-            "error": ("⚠️ Sorgulama hatası", "red")
+            "running": ("🟢 Active", "green"),
+            "stopped": ("🔴 Inactive", "red"),
+            "starting": ("🟡 Starting...", "orange"),
+            "stopping": ("🟡 Stopping...", "orange"),
+            "not_found": ("❌ Service not found", "gray"),
+            "unknown": ("❓ Status unknown", "gray"),
+            "error": ("⚠️ Query error", "red")
         }
         text, color = status_map.get(status, ("❓", "black"))
         self.status_var.set(text)
         self.status_label.config(foreground=color)
         
-        # Duruma göre butonları aktif/pasif yap
+        # Buttons should only be updated if the service has been found and is in a stable state.
         is_running = status == "running"
         is_stopped = status == "stopped"
         
@@ -159,19 +152,19 @@ class WarpManager:
             self.stop_button.config(state=tk.DISABLED)
 
     def start_status_monitor(self):
-        """Servis durumunu periyodik olarak kontrol eden döngüyü başlatır."""
+        """Starts the loop that periodically checks the service status."""
         def monitor():
-            # İlk durumu hemen, beklemeden göster
+            # Show the initial status immediately without waiting.
             if self.active_service:
                 initial_status = self.get_service_status()
                 self.root.after(0, self.update_status_display, initial_status)
         
-            # Hazırlık bitti, ana uygulamayı gösterme zamanı.
+            # Loading is complete, time to show the main application.
             if self.on_ready_callback:
                 self.root.after(200, self.on_ready_callback)
 
             while self.monitoring_active:
-                time.sleep(2) # Döngünün başında bekle
+                time.sleep(2) # Wait at the beginning of the loop
                 if self.active_service:
                     status = self.get_service_status()
                     self.root.after(0, self.update_status_display, status)
@@ -179,37 +172,38 @@ class WarpManager:
         self.run_threaded(monitor)
         
     def manage_service(self, action):
-        """Servis başlatma veya durdurma işlemini yönetir."""
+        """Manages the service start and stop operations."""
         if not self.active_service:
-            self.message_var.set("İşlem yapılamıyor, hizmet bulunamadı.")
+            self.message_var.set("Operation failed, service not found.")
             return
 
         current_status = self.get_service_status()
         
         if action == 'start' and current_status == 'running':
-            self.message_var.set("Hizmet zaten çalışıyor.")
+            self.message_var.set("Service is already running.")
             return
             
         if action == 'stop' and current_status == 'stopped':
-            self.message_var.set("Hizmet zaten durdurulmuş.")
+            self.message_var.set("Service is already stopped.")
             return
 
-        action_gerund = "Başlatılıyor..." if action == 'start' else "Durduruluyor..."
+        action_gerund = "Starting..." if action == 'start' else "Stopping..."
         self.message_var.set(action_gerund)
 
         creation_flags = subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0
         try:
-            subprocess.run(['net', action, self.active_service], check=True, capture_output=True, text=True, timeout=30, creationflags=creation_flags)
-            success_message = "✅ Başarıyla başlatıldı." if action == 'start' else "✅ Başarıyla durduruldu."
+            subprocess.run(['net', action, self.active_service], check=True, capture_output=True, text=True,
+                         timeout=30, creationflags=creation_flags)
+            success_message = "✅ Successfully started." if action == 'start' else "✅ Successfully stopped."
             self.message_var.set(success_message)
         except subprocess.TimeoutExpired:
-            self.message_var.set("❌ İşlem zaman aşımına uğradı.")
+            self.message_var.set("❌ Operation timed out.")
         except subprocess.CalledProcessError as e:
-            # Hata mesajını temizleyerek kullanıcıya göster
+            # Clean up the error message and display it to the user.
             error_details = e.stderr.strip().splitlines()[-1]
-            self.message_var.set(f"❌ Hata: {error_details}")
+            self.message_var.set(f"❌ Error: {error_details}")
         except Exception as e:
-            self.message_var.set(f"❌ Beklenmedik bir hata oluştu: {e}")
+            self.message_var.set(f"❌ An unexpected error occurred: {e}")
 
     def start_service(self):
         self.run_threaded(self.manage_service, 'start')
@@ -218,16 +212,16 @@ class WarpManager:
         self.run_threaded(self.manage_service, 'stop')
         
     def on_closing(self):
-        """Uygulama kapatılırken arka plan işlemlerini durdurur."""
+        """Stops background processes when the application is closing."""
         self.monitoring_active = False
         self.root.destroy()
 
 class SplashScreen:
-    """Uygulama yüklenirken gösterilecek olan açılış ekranı."""
+    """The splash screen to be displayed while the application is loading."""
     def __init__(self, root):
         self.root = root
         self.splash = tk.Toplevel(self.root)
-        self.splash.overrideredirect(True)  # Kenarlık ve başlık çubuğu olmayan pencere
+        self.splash.overrideredirect(True)  # Window without border and title bar
 
         width, height = 250, 120
         screen_width = self.splash.winfo_screenwidth()
@@ -243,7 +237,7 @@ class SplashScreen:
         ttk.Style().configure("Splash.TFrame", background='#fafafa')
 
         ttk.Label(splash_frame, text="Warp Manager", font=("Segoe UI", 14, "bold"), background='#fafafa').pack(pady=(20, 5))
-        ttk.Label(splash_frame, text="Yükleniyor...", font=("Segoe UI", 10), background='#fafafa').pack()
+        ttk.Label(splash_frame, text="Loading...", font=("Segoe UI", 10), background='#fafafa').pack()
         
         self.progress = ttk.Progressbar(splash_frame, orient='horizontal', length=200, mode='indeterminate')
         self.progress.pack(pady=(10, 0))
@@ -254,6 +248,7 @@ class SplashScreen:
         self.splash.destroy()
 
 def load_settings():
+    """Loads settings from the settings file."""
     if os.path.exists(SETTINGS_FILE):
         try:
             with open(SETTINGS_FILE, 'r', encoding='utf-8') as f:
@@ -263,6 +258,7 @@ def load_settings():
     return {}
 
 def save_settings(settings):
+    """Saves settings to the settings file."""
     try:
         with open(SETTINGS_FILE, 'w', encoding='utf-8') as f:
             json.dump(settings, f)
@@ -270,12 +266,14 @@ def save_settings(settings):
         pass
 
 def is_admin():
+    """Checks if the user has administrator privileges."""
     try:
         return ctypes.windll.shell32.IsUserAnAdmin()
     except AttributeError:
         return False
 
 def request_admin_rights_and_rerun():
+    """Requests admin rights and reruns the script."""
     try:
         # Use pythonw.exe if available to avoid console window
         exe = sys.executable
@@ -285,7 +283,7 @@ def request_admin_rights_and_rerun():
                 exe = pythonw
         ctypes.windll.shell32.ShellExecuteW(None, "runas", exe, " ".join(sys.argv), None, 1)
     except Exception as e:
-        print(f"Yönetici hakları alınamadı, program başlatılamıyor. Hata: {e}")
+        print(f"Could not get admin rights, unable to start program. Error: {e}")
 
 def ask_always_admin(root):
     """Kullanıcıya programı her zaman yönetici olarak çalıştırmak isteyip istemediğini sorar."""
@@ -293,30 +291,33 @@ def ask_always_admin(root):
     def ask():
         nonlocal result
         result = messagebox.askyesno(
-            "Yönetici Olarak Çalıştırma",
-            "Programı her zaman yönetici olarak çalıştırmak ister misiniz?\n\nEvet derseniz, program her açılışta otomatik olarak yönetici olarak başlatılır.")
+            "Run as Administrator",
+            "Would you like to always run this program as an administrator?\n\n"
+            "If you choose yes, it will automatically start as an administrator every time."
+        )
     root.after(0, ask)
     root.wait_window()  # Wait for the dialog to close
     return result
 
 def main():
-    """Ana uygulama fonksiyonu."""
+    """Main application function."""
     settings = load_settings()
     admin = is_admin()
-    always_admin = settings.get("always_admin", None)
+    always_run_as_admin = settings.get("always_admin", None)
 
     if not admin:
-        # Kullanıcıya sorulmuş mu?
-        if always_admin is None:
+        # Has the user been asked before?
+        if always_run_as_admin is None:
             root = tk.Tk()
             root.withdraw()
             messagebox.showwarning(
-                "Yönetici Yetkisi Gerekli",
-                "Bu programın tam işlevselliği için yönetici olarak çalıştırılması önerilir!"
+                "Administrator Privileges Recommended",
+                "It is recommended to run this program as an administrator for full functionality!"
             )
             answer = messagebox.askyesno(
-                "Yönetici Olarak Çalıştırma",
-                "Programı her zaman yönetici olarak çalıştırmak ister misiniz?\n\nEvet derseniz, program her açılışta otomatik olarak yönetici olarak başlatılır."
+                "Run as Administrator",
+                "Would you like to always run this program as an administrator?\n\n"
+                "If you choose yes, it will automatically start as an administrator every time."
             )
             settings["always_admin"] = bool(answer)
             save_settings(settings)
@@ -325,35 +326,37 @@ def main():
                 request_admin_rights_and_rerun()
                 return
             root.destroy()
-        elif always_admin:
-            # Kullanıcı daha önce "evet" dedi, otomatik olarak yönetici olarak başlat
+        elif always_run_as_admin:
+            # User previously chose "yes", so automatically start as admin.
             request_admin_rights_and_rerun()
             return
         else:
-            # Kullanıcı daha önce "hayır" dedi, sadece uyarı göster
+            # User previously chose "no", so just show the warning.
             root = tk.Tk()
             root.withdraw()
             messagebox.showwarning(
-                "Yönetici Yetkisi Gerekli",
-                "Bu programın tam işlevselliği için yönetici olarak çalıştırılması önerilir!"
+                "Administrator Privileges Recommended",
+                "It is recommended to run this program as an administrator for full functionality!"
             )
             root.destroy()
 
-    # Artık ya yönetici olarak çalışıyoruz, ya da kullanıcı "hayır" dedi
+    # At this point, we are either running as admin, or the user chose "no".
     root = tk.Tk()
-    root.withdraw()  # Ana pencereyi başlangıçta gizle
+    root.withdraw() # Hide the main window initially.
 
     splash = SplashScreen(root)
 
     def on_app_ready():
+        """This function is called when the main application is ready."""
         splash.destroy()
-        root.deiconify()  # Gizlenmiş ana pencereyi göster
+        root.deiconify() # Show the hidden main window.
 
+    # The main application will call the on_app_ready function when it's ready.
     app = WarpManager(root, on_ready_callback=on_app_ready)
     try:
         root.mainloop()
     except KeyboardInterrupt:
-        print("Uygulama kapatıldı.")
+        print("Application closed.")
 
 if __name__ == "__main__":
     main() 
