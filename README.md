@@ -2,24 +2,30 @@
 
 A simple and modern desktop GUI for Windows to easily manage the Cloudflare WARP service.
 
-*It's highly recommended to add a screenshot of the application here!*
-
-![Warp Manager Screenshot](https://user-images.githubusercontent.com/35674355/269176191-22e69818-4a52-4752-9b7e-f51b5c490a60.png)
+![WarpManager_UjrREp3zUN](https://github.com/user-attachments/assets/3278a661-7bed-4656-8916-b50d11b66430)
 
 ## ✨ Features
 
 - **One-Click Control:** Easily start and stop the Cloudflare WARP service.
-- **Real-Time Status:** See the current status (Active, Inactive, Starting...) at a glance.
-- **Smart Admin Handling:** Asks for permission to always run as administrator for a smoother experience.
-- **Splash Screen:** A "Loading..." screen provides a professional feel while the app starts.
-- **No Flashing Windows:** Runs background checks without any annoying pop-up command windows.
-- **Standalone EXE:** No installation needed, just a single executable file.
+- **Real-Time Status:** Instantly see the service status (Active, Inactive, Starting...).
+- **Smart Admin Handling:** Asks for your permission to always run as administrator for a smoother experience on subsequent launches.
+- **Professional Splash Screen:** A "Loading..." screen prevents the feeling of a slow start.
+- **No Flickering Windows:** All background tasks run invisibly without any annoying console windows popping up.
+- **Standalone Executable:** No installation required. Just a single `.exe` file that you can run from anywhere.
 
 ## 🚀 How to Use
 
-1. Go to the **Releases** page of this repository.
+1. Go to the **[Releases](https://github.com/penu01/warp-service-control/releases)** page of this repository.
 2. Download the latest `WarpManager.exe` file.
 3. Run it! That's all.
+
+## ⚠️ Antivirus False Positives
+
+Some antivirus programs may flag the `WarpManager.exe` file as malicious. **This is a false positive.**
+
+This happens because the application is created with PyInstaller, a tool that bundles Python code into a single executable. The way these executables work (unpacking files into a temporary folder to run) can sometimes resemble the behavior of malware, causing some antivirus heuristics to trigger a warning.
+
+The project is fully open-source. You can review the code yourself to see that it is safe.
 
 ## 🛠️ How to Build from Source
 
@@ -27,11 +33,11 @@ If you want to build the application yourself:
 
 1.  **Clone the repository:**
     ```sh
-    git clone https://github.com/your-username/your-repository-name.git
+    git clone https://github.com/penu01/warp-service-control.git
     ```
 2.  **Navigate to the project directory:**
     ```sh
-    cd your-repository-name
+    cd warp-service-control
     ```
 3.  **Create a virtual environment and activate it:**
     ```sh
