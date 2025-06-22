@@ -25,7 +25,9 @@ Some antivirus programs may flag the `WarpManager.exe` file as malicious. **This
 
 This happens because the application is created with PyInstaller, a tool that bundles Python code into a single executable. The way these executables work (unpacking files into a temporary folder to run) can sometimes resemble the behavior of malware, causing some antivirus heuristics to trigger a warning.
 
-The project is fully open-source. You can review the code yourself to see that it is safe.
+The project is fully open-source. You can review the code yourself to see that it is safe. For transparency, you can see a full VirusTotal scan report below, which indicates that the detection is based on the PyInstaller YARA rule and is not a sign of malware.
+
+![VirusTotal Scan](https://github.com/user-attachments/assets/7d4bea4f-8126-4096-be2c-051deea5fcb2)
 
 ## 🛠️ How to Build from Source
 
