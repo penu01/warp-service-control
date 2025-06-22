@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.pyc
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+
+# Build artifacts
+build/
+dist/
+*.spec
+
+# User-specific settings
+settings.json
+
+# IDE settings
+.vscode/
+.idea/ 
