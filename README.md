@@ -1,8 +1,9 @@
+
 # Warp Manager
 
 A simple and modern desktop GUI for Windows to easily manage the Cloudflare WARP service.
 
-![WarpManager_UjrREp3zUN](https://github.com/user-attachments/assets/3278a661-7bed-4656-8916-b50d11b66430)
+![WarpManager_9fnYaLvc4u](https://github.com/user-attachments/assets/5154d4eb-e1de-49ca-9c12-4bd1d5fd0341)
 
 ## ✨ Features
 
