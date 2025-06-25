@@ -31,7 +31,7 @@ class WarpManager:
         window_width = 320
         window_height = 200
 
-        # Ekran boyutlarını al ve pencereyi ortala
+        # Get screen size and center the window
         screen_width = self.root.winfo_screenwidth()
         screen_height = self.root.winfo_screenheight()
         center_x = int(screen_width / 2 - window_width / 2)
@@ -63,7 +63,7 @@ class WarpManager:
         self.stop_button = ttk.Button(button_frame, text="Stop", command=self.stop_service, style="W.TButton", width=12)
         self.stop_button.pack(side=tk.LEFT, padx=(5, 0))
 
-        # --- Servis Başlangıç Türü Seçici ---
+        # --- Service Start Type Selector ---
         self.start_type_label = ttk.Label(main_frame, text="Service Start Type", font=("Segoe UI", 9))
         self.start_type_label.pack(pady=(10, 0))
         self.start_type_var = tk.StringVar(value="Automatic")
@@ -91,7 +91,7 @@ class WarpManager:
             self.root.destroy()
             return
         
-        # Servis bulma işlemini başlat. Bu işlem bitince durum izleyiciyi kendisi tetikleyecek.
+        # Start the service search process. When this is done, the status monitor will trigger itself.
         self.run_threaded(self.find_warp_service)
 
     def run_threaded(self, target_func, *args):
@@ -110,7 +110,7 @@ class WarpManager:
                 subprocess.run(['sc', 'query', service_name], check=True, capture_output=True, creationflags=creation_flags)
                 self.active_service = service_name
                 self.root.after(0, lambda: self.message_var.set(f"Service found: {self.active_service}"))
-                # Servisin mevcut başlangıç türünü oku ve combobox'a yansıt
+                # Read the current start type of the service and reflect it to the combobox
                 self.root.after(0, self.update_start_type_combobox)
                 # Start the status monitor after the service is found
                 self.start_status_monitor()
@@ -249,7 +249,7 @@ class WarpManager:
                 'sc', 'config', self.active_service, 'start=', mapped_type
             ], check=True, capture_output=True, text=True, creationflags=creation_flags)
             self.message_var.set(f"Service start type set to: {start_type.capitalize()}.")
-            # Eğer Disabled seçildiyse ve servis çalışıyorsa, servisi durdur
+            # If Disabled is selected and the service is running, stop the service
             if start_type == "disabled":
                 status = self.get_service_status()
                 if status == "running":
@@ -262,7 +262,7 @@ class WarpManager:
             self.message_var.set(f"❌ Unexpected error: {e}")
 
     def update_start_type_combobox(self):
-        """Servisin mevcut başlangıç türünü combobox'a yansıt."""
+        """Reflect the current start type of the service to the combobox."""
         if not self.active_service:
             self.start_type_var.set("Automatic")
             return
@@ -301,7 +301,7 @@ class SplashScreen:
 
         self.splash.geometry(f'{width}x{height}+{x}+{y}')
         
-        # Stil ve çerçeve
+        # Style and frame
         splash_frame = ttk.Frame(self.splash, style="Splash.TFrame")
         splash_frame.pack(expand=True, fill='both')
         ttk.Style().configure("Splash.TFrame", background='#fafafa')
@@ -356,7 +356,7 @@ def request_admin_rights_and_rerun():
         print(f"Could not get admin rights, unable to start program. Error: {e}")
 
 def ask_always_admin(root):
-    """Kullanıcıya programı her zaman yönetici olarak çalıştırmak isteyip istemediğini sorar."""
+    """Asks the user if they want to always run the program as administrator."""
     result = None
     def ask():
         nonlocal result
