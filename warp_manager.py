@@ -63,6 +63,20 @@ class WarpManager:
         self.stop_button = ttk.Button(button_frame, text="Stop", command=self.stop_service, style="W.TButton", width=12)
         self.stop_button.pack(side=tk.LEFT, padx=(5, 0))
 
+        # --- Servis Başlangıç Türü Seçici ---
+        self.start_type_label = ttk.Label(main_frame, text="Service Start Type", font=("Segoe UI", 9))
+        self.start_type_label.pack(pady=(10, 0))
+        self.start_type_var = tk.StringVar(value="Automatic")
+        self.start_type_combobox = ttk.Combobox(
+            main_frame,
+            textvariable=self.start_type_var,
+            values=["Automatic", "Manual", "Disabled"],
+            state="readonly",
+            width=15
+        )
+        self.start_type_combobox.pack(pady=(0, 0))
+        self.start_type_combobox.bind("<<ComboboxSelected>>", self.on_start_type_change)
+
         self.message_var = tk.StringVar(value="Ready.")
         message_label = ttk.Label(main_frame, textvariable=self.message_var, font=("Segoe UI", 9), wraplength=280)
         message_label.pack(pady=(15, 0))
@@ -96,13 +110,13 @@ class WarpManager:
                 subprocess.run(['sc', 'query', service_name], check=True, capture_output=True, creationflags=creation_flags)
                 self.active_service = service_name
                 self.root.after(0, lambda: self.message_var.set(f"Service found: {self.active_service}"))
-                
+                # Servisin mevcut başlangıç türünü oku ve combobox'a yansıt
+                self.root.after(0, self.update_start_type_combobox)
                 # Start the status monitor after the service is found
                 self.start_status_monitor()
                 return
             except (subprocess.CalledProcessError, FileNotFoundError):
                 continue
-        
         self.root.after(0, lambda: self.message_var.set("Cloudflare WARP service not found."))
         self.root.after(0, lambda: self.update_status_display("not_found"))
 
@@ -215,6 +229,62 @@ class WarpManager:
         """Stops background processes when the application is closing."""
         self.monitoring_active = False
         self.root.destroy()
+
+    def on_start_type_change(self, event=None):
+        """Kullanıcı servis başlangıç türünü değiştirdiğinde çağrılır."""
+        if not self.active_service:
+            self.message_var.set("Service not found.")
+            return
+        start_type = self.start_type_var.get().lower()
+        # sc config <servis> start= <type>
+        type_map = {
+            "automatic": "auto",
+            "manual": "demand",
+            "disabled": "disabled"
+        }
+        mapped_type = type_map.get(start_type, "auto")
+        creation_flags = subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0
+        try:
+            subprocess.run([
+                'sc', 'config', self.active_service, 'start=', mapped_type
+            ], check=True, capture_output=True, text=True, creationflags=creation_flags)
+            self.message_var.set(f"Service start type set to: {start_type.capitalize()}.")
+            # Eğer Disabled seçildiyse ve servis çalışıyorsa, servisi durdur
+            if start_type == "disabled":
+                status = self.get_service_status()
+                if status == "running":
+                    self.message_var.set("Disabling and stopping service...")
+                    self.run_threaded(self.manage_service, 'stop')
+        except subprocess.CalledProcessError as e:
+            error_details = e.stderr.strip().splitlines()[-1] if e.stderr else str(e)
+            self.message_var.set(f"❌ Error: {error_details}")
+        except Exception as e:
+            self.message_var.set(f"❌ Unexpected error: {e}")
+
+    def update_start_type_combobox(self):
+        """Servisin mevcut başlangıç türünü combobox'a yansıt."""
+        if not self.active_service:
+            self.start_type_var.set("Automatic")
+            return
+        creation_flags = subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0
+        try:
+            result = subprocess.run([
+                'sc', 'qc', self.active_service
+            ], capture_output=True, text=True, creationflags=creation_flags)
+            output = result.stdout.lower()
+            if 'start_type' in output:
+                if 'auto_start' in output:
+                    self.start_type_var.set("Automatic")
+                elif 'demand_start' in output:
+                    self.start_type_var.set("Manual")
+                elif 'disabled' in output:
+                    self.start_type_var.set("Disabled")
+                else:
+                    self.start_type_var.set("Automatic")
+            else:
+                self.start_type_var.set("Automatic")
+        except Exception:
+            self.start_type_var.set("Automatic")
 
 class SplashScreen:
     """The splash screen to be displayed while the application is loading."""
