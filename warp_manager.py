@@ -1,6 +1,6 @@
 import subprocess
 import tkinter as tk
-from tkinter import ttk, messagebox, simpledialog
+from tkinter import ttk, messagebox
 import ctypes
 import sys
 import threading
@@ -76,6 +76,7 @@ class WarpManager:
         )
         self.start_type_combobox.pack(pady=(0, 0))
         self.start_type_combobox.bind("<<ComboboxSelected>>", self.on_start_type_change)
+        self.start_type_combobox.config(state=tk.DISABLED)  # Initially disabled
 
         self.message_var = tk.StringVar(value="Ready.")
         message_label = ttk.Label(main_frame, textvariable=self.message_var, font=("Segoe UI", 9), wraplength=280)
@@ -91,7 +92,7 @@ class WarpManager:
             self.root.destroy()
             return
         
-        # Start the service search process. When this is done, the status monitor will trigger itself.
+        # Servis arama işlemini başlat. Servis bulunursa durum izleyici başlatılacak.
         self.run_threaded(self.find_warp_service)
 
     def run_threaded(self, target_func, *args):
@@ -101,24 +102,26 @@ class WarpManager:
 
     def find_warp_service(self):
         """Finds the current WARP service and then starts the status monitor."""
-        # This flag prevents a console window from appearing for subprocess calls on Windows.
         creation_flags = subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0
-
         for service_name in self.service_names:
             try:
-                # 'sc query' is sufficient to check for the existence of the service.
                 subprocess.run(['sc', 'query', service_name], check=True, capture_output=True, creationflags=creation_flags)
                 self.active_service = service_name
                 self.root.after(0, lambda: self.message_var.set(f"Service found: {self.active_service}"))
-                # Read the current start type of the service and reflect it to the combobox
                 self.root.after(0, self.update_start_type_combobox)
-                # Start the status monitor after the service is found
+                self.root.after(0, lambda: self.start_type_combobox.config(state=tk.NORMAL))
                 self.start_status_monitor()
                 return
-            except (subprocess.CalledProcessError, FileNotFoundError):
+            except FileNotFoundError:
+                self.root.after(0, lambda: self.message_var.set("❌ 'sc' command not found. Please ensure you are running on Windows and 'sc' is available in PATH."))
+                return
+            except subprocess.CalledProcessError:
                 continue
+        # Servis bulunamadıysa combobox'u devre dışı bırak
+        self.root.after(0, lambda: self.start_type_combobox.config(state=tk.DISABLED))
         self.root.after(0, lambda: self.message_var.set("Cloudflare WARP service not found."))
         self.root.after(0, lambda: self.update_status_display("not_found"))
+        # Status monitor is not started
 
     def get_service_status(self):
         """Returns the current status of the service (e.g., running, stopped)."""
@@ -136,11 +139,13 @@ class WarpManager:
             if "STOP_PENDING" in output: return "stopping"
             return "unknown"
             
+        except FileNotFoundError:
+            return "error"
         except (subprocess.TimeoutExpired, subprocess.CalledProcessError):
             return "error"
 
     def update_status_display(self, status):
-        """Updates the status text and color in the UI."""
+        """Updates the status text and color in the UI in a thread-safe way."""
         status_map = {
             "running": ("🟢 Active", "green"),
             "stopped": ("🔴 Inactive", "red"),
@@ -151,13 +156,14 @@ class WarpManager:
             "error": ("⚠️ Query error", "red")
         }
         text, color = status_map.get(status, ("❓", "black"))
-        self.status_var.set(text)
-        self.status_label.config(foreground=color)
-        
+        # Arayüz güncellemeleri ana thread'de yapılmalı
+        self.root.after(0, lambda: self.status_var.set(text))
+        self.root.after(0, lambda: self.status_label.config(foreground=color))
+
         # Buttons should only be updated if the service has been found and is in a stable state.
         is_running = status == "running"
         is_stopped = status == "stopped"
-        
+
         if self.active_service:
             self.start_button.config(state=tk.DISABLED if is_running else tk.NORMAL)
             self.stop_button.config(state=tk.NORMAL if is_running else tk.DISABLED)
@@ -168,7 +174,7 @@ class WarpManager:
     def start_status_monitor(self):
         """Starts the loop that periodically checks the service status."""
         def monitor():
-            # Show the initial status immediately without waiting.
+            # Show the initial status immediately
             if self.active_service:
                 initial_status = self.get_service_status()
                 self.root.after(0, self.update_status_display, initial_status)
@@ -188,36 +194,38 @@ class WarpManager:
     def manage_service(self, action):
         """Manages the service start and stop operations."""
         if not self.active_service:
-            self.message_var.set("Operation failed, service not found.")
+            self.root.after(0, lambda: self.message_var.set("Operation failed, service not found."))
             return
 
         current_status = self.get_service_status()
-        
+
         if action == 'start' and current_status == 'running':
-            self.message_var.set("Service is already running.")
             return
-            
+
         if action == 'stop' and current_status == 'stopped':
-            self.message_var.set("Service is already stopped.")
             return
 
         action_gerund = "Starting..." if action == 'start' else "Stopping..."
-        self.message_var.set(action_gerund)
+        self.root.after(0, lambda: self.message_var.set(action_gerund))
 
         creation_flags = subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0
         try:
             subprocess.run(['net', action, self.active_service], check=True, capture_output=True, text=True,
                          timeout=30, creationflags=creation_flags)
-            success_message = "✅ Successfully started." if action == 'start' else "✅ Successfully stopped."
-            self.message_var.set(success_message)
+        except FileNotFoundError:
+            self.root.after(0, lambda: self.message_var.set("❌ 'net' command not found. Please ensure you are running on Windows and 'net' is available in PATH."))
         except subprocess.TimeoutExpired:
-            self.message_var.set("❌ Operation timed out.")
+            self.root.after(0, lambda: self.message_var.set("❌ Operation timed out."))
         except subprocess.CalledProcessError as e:
             # Clean up the error message and display it to the user.
-            error_details = e.stderr.strip().splitlines()[-1]
-            self.message_var.set(f"❌ Error: {error_details}")
+            if e.stderr:
+                lines = e.stderr.strip().splitlines()
+                error_details = lines[-1] if lines else str(e)
+            else:
+                error_details = str(e)
+            self.root.after(0, lambda: self.message_var.set(f"❌ Error: {error_details}"))
         except Exception as e:
-            self.message_var.set(f"❌ An unexpected error occurred: {e}")
+            self.root.after(0, lambda: self.message_var.set(f"❌ An unexpected error occurred: {e}"))
 
     def start_service(self):
         self.run_threaded(self.manage_service, 'start')
@@ -228,15 +236,17 @@ class WarpManager:
     def on_closing(self):
         """Stops background processes when the application is closing."""
         self.monitoring_active = False
+        # Small delay to reduce race condition risk
+        time.sleep(0.1)
         self.root.destroy()
 
     def on_start_type_change(self, event=None):
-        """Kullanıcı servis başlangıç türünü değiştirdiğinde çağrılır."""
+        """Called when the user changes the service start type."""
         if not self.active_service:
-            self.message_var.set("Service not found.")
+            self.root.after(0, lambda: self.message_var.set("Service not found."))
             return
         start_type = self.start_type_var.get().lower()
-        # sc config <servis> start= <type>
+        # sc config <service> start= <type>
         type_map = {
             "automatic": "auto",
             "manual": "demand",
@@ -248,23 +258,29 @@ class WarpManager:
             subprocess.run([
                 'sc', 'config', self.active_service, 'start=', mapped_type
             ], check=True, capture_output=True, text=True, creationflags=creation_flags)
-            self.message_var.set(f"Service start type set to: {start_type.capitalize()}.")
+            self.root.after(0, lambda: self.message_var.set(f"Service start type set to: {start_type.capitalize()}."))
             # If Disabled is selected and the service is running, stop the service
             if start_type == "disabled":
                 status = self.get_service_status()
                 if status == "running":
-                    self.message_var.set("Disabling and stopping service...")
+                    self.root.after(0, lambda: self.message_var.set("Disabling and stopping service..."))
                     self.run_threaded(self.manage_service, 'stop')
+        except FileNotFoundError:
+            self.root.after(0, lambda: self.message_var.set("❌ 'sc' command not found. Please ensure you are running on Windows and 'sc' is available in PATH."))
         except subprocess.CalledProcessError as e:
-            error_details = e.stderr.strip().splitlines()[-1] if e.stderr else str(e)
-            self.message_var.set(f"❌ Error: {error_details}")
+            if e.stderr:
+                lines = e.stderr.strip().splitlines()
+                error_details = lines[-1] if lines else str(e)
+            else:
+                error_details = str(e)
+            self.root.after(0, lambda: self.message_var.set(f"❌ Error: {error_details}"))
         except Exception as e:
-            self.message_var.set(f"❌ Unexpected error: {e}")
+            self.root.after(0, lambda: self.message_var.set(f"❌ Unexpected error: {e}"))
 
     def update_start_type_combobox(self):
-        """Reflect the current start type of the service to the combobox."""
+        """Reflect the current start type of the service to the combobox. Hatalarda kullanıcıya bilgi verir ve thread-safe çalışır."""
         if not self.active_service:
-            self.start_type_var.set("Automatic")
+            self.root.after(0, lambda: self.start_type_var.set("Automatic"))
             return
         creation_flags = subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0
         try:
@@ -274,17 +290,22 @@ class WarpManager:
             output = result.stdout.lower()
             if 'start_type' in output:
                 if 'auto_start' in output:
-                    self.start_type_var.set("Automatic")
+                    self.root.after(0, lambda: self.start_type_var.set("Automatic"))
                 elif 'demand_start' in output:
-                    self.start_type_var.set("Manual")
+                    self.root.after(0, lambda: self.start_type_var.set("Manual"))
                 elif 'disabled' in output:
-                    self.start_type_var.set("Disabled")
+                    self.root.after(0, lambda: self.start_type_var.set("Disabled"))
                 else:
-                    self.start_type_var.set("Automatic")
+                    self.root.after(0, lambda: self.start_type_var.set("Automatic"))
             else:
-                self.start_type_var.set("Automatic")
-        except Exception:
-            self.start_type_var.set("Automatic")
+                self.root.after(0, lambda: self.start_type_var.set("Automatic"))
+        except FileNotFoundError:
+            self.root.after(0, lambda: self.start_type_var.set("Automatic"))
+            self.root.after(0, lambda: self.message_var.set("❌ 'sc' command not found. Please ensure you are running on Windows and 'sc' is available in PATH."))
+        except Exception as e:
+            # Hata durumunda kullanıcıya bilgi ver
+            self.root.after(0, lambda: self.start_type_var.set("Automatic"))
+            self.root.after(0, lambda: self.message_var.set(f"❌ Start type could not be read: {e}"))
 
 class SplashScreen:
     """The splash screen to be displayed while the application is loading."""
@@ -318,22 +339,23 @@ class SplashScreen:
         self.splash.destroy()
 
 def load_settings():
-    """Loads settings from the settings file."""
+    """Loads settings from the settings file. Shows a warning if the file cannot be read."""
     if os.path.exists(SETTINGS_FILE):
         try:
             with open(SETTINGS_FILE, 'r', encoding='utf-8') as f:
                 return json.load(f)
-        except Exception:
+        except Exception as e:
+            messagebox.showwarning("Settings Error", f"Could not read settings file: {e}")
             return {}
     return {}
 
 def save_settings(settings):
-    """Saves settings to the settings file."""
+    """Saves settings to the settings file. Shows a warning if the file cannot be written."""
     try:
         with open(SETTINGS_FILE, 'w', encoding='utf-8') as f:
             json.dump(settings, f)
-    except Exception:
-        pass
+    except Exception as e:
+        messagebox.showwarning("Settings Error", f"Could not save settings file: {e}")
 
 def is_admin():
     """Checks if the user has administrator privileges."""
@@ -354,20 +376,6 @@ def request_admin_rights_and_rerun():
         ctypes.windll.shell32.ShellExecuteW(None, "runas", exe, " ".join(sys.argv), None, 1)
     except Exception as e:
         print(f"Could not get admin rights, unable to start program. Error: {e}")
-
-def ask_always_admin(root):
-    """Asks the user if they want to always run the program as administrator."""
-    result = None
-    def ask():
-        nonlocal result
-        result = messagebox.askyesno(
-            "Run as Administrator",
-            "Would you like to always run this program as an administrator?\n\n"
-            "If you choose yes, it will automatically start as an administrator every time."
-        )
-    root.after(0, ask)
-    root.wait_window()  # Wait for the dialog to close
-    return result
 
 def main():
     """Main application function."""
@@ -427,6 +435,10 @@ def main():
         root.mainloop()
     except KeyboardInterrupt:
         print("Application closed.")
+        try:
+            root.destroy()
+        except Exception:
+            pass
 
 if __name__ == "__main__":
     main() 
